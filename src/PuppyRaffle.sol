@@ -77,7 +77,7 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @notice duplicate entrants are not allowed
     /// @param newPlayers the list of players to enter the raffle
 
-    // @audit-1 there is a more efficient way using(mapping) to check for the duplicate players
+    // @audit DoS
 
     function enterRaffle(address[] memory newPlayers) public payable {
         require(msg.value == entranceFee * newPlayers.length, "PuppyRaffle: Must send enough to enter raffle");
@@ -102,6 +102,7 @@ contract PuppyRaffle is ERC721, Ownable {
     // @audit-high player index here is mapped to address 0 but player is still in the player array
 
     function refund(uint256 playerIndex) public {
+        //@audit MEV
         address playerAddress = players[playerIndex];
         require(playerAddress == msg.sender, "PuppyRaffle: Only the player can refund");
         require(playerAddress != address(0), "PuppyRaffle: Player already refunded, or is not active");
@@ -123,6 +124,7 @@ contract PuppyRaffle is ERC721, Ownable {
                 return i;
             }
         }
+        //@audit if a player is at index 0 this will return 0 making the player think they are not active 
         return 0;
     }
 

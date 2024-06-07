@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
+pragma solidity ^0.8.19;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -76,6 +76,9 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @notice they have to pay the entrance fee * the number of players
     /// @notice duplicate entrants are not allowed
     /// @param newPlayers the list of players to enter the raffle
+
+    // @audit-1 there is a more efficient way using(mapping) to check for the duplicate players
+
     function enterRaffle(address[] memory newPlayers) public payable {
         require(msg.value == entranceFee * newPlayers.length, "PuppyRaffle: Must send enough to enter raffle");
         for (uint256 i = 0; i < newPlayers.length; i++) {
@@ -93,13 +96,18 @@ contract PuppyRaffle is ERC721, Ownable {
 
     /// @param playerIndex the index of the player to refund. You can find it externally by calling `getActivePlayerIndex`
     /// @dev This function will allow there to be blank spots in the array
+
+    // @audit-gas using the 'if' keyword instead of the require key word can save us a good amount of gas
+    // @audit-high if there is a blank spot in the array saying for example address zero, and the winner is called at random this can lead to the random winner being a zero address, if a player decides to call for refund the player should be kicked out of the array along with its spot unless there is a mechanism to check for address 0 when calling the random winner. 
+    // @audit-high player index here is mapped to address 0 but player is still in the player array
+
     function refund(uint256 playerIndex) public {
         address playerAddress = players[playerIndex];
         require(playerAddress == msg.sender, "PuppyRaffle: Only the player can refund");
         require(playerAddress != address(0), "PuppyRaffle: Player already refunded, or is not active");
 
         payable(msg.sender).sendValue(entranceFee);
-
+    
         players[playerIndex] = address(0);
         emit RaffleRefunded(playerAddress);
     }
@@ -107,6 +115,8 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @notice a way to get the index in the array
     /// @param player the address of a player in the raffle
     /// @return the index of the player in the array, if they are not active, it returns 0
+    // @audit didnt get a mechanism for checking activeness 
+
     function getActivePlayerIndex(address player) external view returns (uint256) {
         for (uint256 i = 0; i < players.length; i++) {
             if (players[i] == player) {
@@ -122,6 +132,11 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @dev we use a hash of on-chain data to generate the random numbers
     /// @dev we reset the active players array after the winner is selected
     /// @dev we send 80% of the funds to the winner, the other 20% goes to the feeAddress
+
+    // @audit might need a more efficient way to find randomness 
+    // @audit the selectWinner function should be automated 
+    // @audit no mechanism to check if user is active player or not, as players who has called refund can still be rewarded here 
+    // @audit totalsupply is an undeclared identifier hence breaking the whole code
     function selectWinner() external {
         require(block.timestamp >= raffleStartTime + raffleDuration, "PuppyRaffle: Raffle not over");
         require(players.length >= 4, "PuppyRaffle: Need at least 4 players");
@@ -154,6 +169,9 @@ contract PuppyRaffle is ERC721, Ownable {
     }
 
     /// @notice this function will withdraw the fees to the feeAddress
+
+    // @audit anybody can call the withdraw fees functions here this is supposed to be ownable
+    // @audit there is no mechanism to check if competition is still active 
     function withdrawFees() external {
         require(address(this).balance == uint256(totalFees), "PuppyRaffle: There are currently players active!");
         uint256 feesToWithdraw = totalFees;

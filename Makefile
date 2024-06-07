@@ -13,6 +13,8 @@ clean  :; forge clean
 remove :; rm -rf .gitmodules && rm -rf .git/modules/* && rm -rf lib && touch .gitmodules && git add . && git commit -m "modules"
 
 install :; forge install foundry-rs/forge-std --no-commit && forge install openzeppelin/openzeppelin-contracts@v3.4.0 --no-commit && forge install Brechtpd/base64 --no-commit 
+installs :; forge install chainaccelorg/foundry-devops@0.0.11 --no-commit && forge install smartcontractkit/chainlink-brownie-contracts@0.6.1 --no-commit && forge install foundry-rs/forge-std@v1.7.1 --no-commit && forge install openzeppelin/openzeppelin-contracts@v4.9.3 --no-commit
+
 
 # Update Dependencies
 update:; forge update

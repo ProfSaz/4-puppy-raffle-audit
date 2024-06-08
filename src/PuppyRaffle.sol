@@ -108,7 +108,8 @@ contract PuppyRaffle is ERC721, Ownable {
         require(playerAddress != address(0), "PuppyRaffle: Player already refunded, or is not active");
 
         payable(msg.sender).sendValue(entranceFee);
-    
+        
+        //@audit reentrant 
         players[playerIndex] = address(0);
         emit RaffleRefunded(playerAddress);
     }
@@ -142,12 +143,18 @@ contract PuppyRaffle is ERC721, Ownable {
     function selectWinner() external {
         require(block.timestamp >= raffleStartTime + raffleDuration, "PuppyRaffle: Raffle not over");
         require(players.length >= 4, "PuppyRaffle: Need at least 4 players");
+
+        //@audit weak randomness 
         uint256 winnerIndex =
             uint256(keccak256(abi.encodePacked(msg.sender, block.timestamp, block.difficulty))) % players.length;
         address winner = players[winnerIndex];
         uint256 totalAmountCollected = players.length * entranceFee;
+        //q is the total 80% correct
+        //q why not address(this).balance
         uint256 prizePool = (totalAmountCollected * 80) / 100;
         uint256 fee = (totalAmountCollected * 20) / 100;
+        //q why is the fee type casted 
+        //@audit overflow 
         totalFees = totalFees + uint64(fee);
 
         uint256 tokenId = totalSupply();

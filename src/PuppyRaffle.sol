@@ -2,6 +2,7 @@
 pragma solidity ^0.7.6;
 
 //@audit use of floating pragma is bad 
+//@audit why are you using an old version of solidity
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -23,6 +24,7 @@ contract PuppyRaffle is ERC721, Ownable {
     uint256 public immutable entranceFee;
 
     address[] public players;
+    //@audit-gas raffleDuration should be immutable
     uint256 public raffleDuration;
     uint256 public raffleStartTime;
     address public previousWinner;
@@ -36,6 +38,7 @@ contract PuppyRaffle is ERC721, Ownable {
     mapping(uint256 => string) public rarityToUri;
     mapping(uint256 => string) public rarityToName;
 
+    //@audit-gas should be constant 
     // Stats for the common puppy (pug)
     string private commonImageUri = "ipfs://QmSsYRx3LpDAb1GZQm7zZ1AuHZjfbPkD6J7s9r41xu1mf8";
     uint256 public constant COMMON_RARITY = 70;
@@ -61,6 +64,9 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @param _raffleDuration the duration in seconds of the raffle
     constructor(uint256 _entranceFee, address _feeAddress, uint256 _raffleDuration) ERC721("Puppy Raffle", "PR") {
         entranceFee = _entranceFee;
+
+        // @audit-info check for zero address
+        // input validation 
         feeAddress = _feeAddress;
         raffleDuration = _raffleDuration;
         raffleStartTime = block.timestamp;
@@ -88,6 +94,8 @@ contract PuppyRaffle is ERC721, Ownable {
         }
 
         // Check for duplicates
+        //@audit-gas cache the array 
+        //uint256 playersLength = players.length;
         for (uint256 i = 0; i < players.length - 1; i++) {
             for (uint256 j = i + 1; j < players.length; j++) {
                 require(players[i] != players[j], "PuppyRaffle: Duplicate player");
@@ -113,6 +121,10 @@ contract PuppyRaffle is ERC721, Ownable {
         
         //@audit reentrant 
         players[playerIndex] = address(0);
+        //@audit-low
+        // if an event can be manipulated
+        // An event is wrong 
+        // An event is missing 
         emit RaffleRefunded(playerAddress);
     }
 
@@ -155,7 +167,9 @@ contract PuppyRaffle is ERC721, Ownable {
         //q why not address(this).balance
 
         //@audit using magic numbers 
-        // uint256 public constant = PRICE_POOL_PRECISION 
+        // uint256 public constant PRICE_POOL_PERCENTAGE = 80; 
+        // uint256 public constant FEE_PERCENTAGE = 20;
+        // uint256 public constant  POOL_PRECISION = 100;
         uint256 prizePool = (totalAmountCollected * 80) / 100;
         uint256 fee = (totalAmountCollected * 20) / 100;
         //q why is the fee type casted 
@@ -201,6 +215,8 @@ contract PuppyRaffle is ERC721, Ownable {
         require(address(this).balance == uint256(totalFees), "PuppyRaffle: There are currently players active!");
         uint256 feesToWithdraw = totalFees;
         totalFees = 0;
+
+        // slither-disable-next-line arbitrary-send-eth
         (bool success,) = feeAddress.call{value: feesToWithdraw}("");
         require(success, "PuppyRaffle: Failed to withdraw fees");
     }

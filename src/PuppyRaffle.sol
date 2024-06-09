@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.6;
 
-//@audit use of floating pragma is bad 
-//@audit why are you using an old version of solidity
+//report-written use of floating pragma is bad 
+//report-written why are you using an old version of solidity
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -24,7 +24,7 @@ contract PuppyRaffle is ERC721, Ownable {
     uint256 public immutable entranceFee;
 
     address[] public players;
-    //@audit-gas raffleDuration should be immutable
+    //report-written raffleDuration should be immutable
     uint256 public raffleDuration;
     uint256 public raffleStartTime;
     address public previousWinner;
@@ -38,7 +38,7 @@ contract PuppyRaffle is ERC721, Ownable {
     mapping(uint256 => string) public rarityToUri;
     mapping(uint256 => string) public rarityToName;
 
-    //@audit-gas should be constant 
+    //report-written rarity ImageUri should be constant 
     // Stats for the common puppy (pug)
     string private commonImageUri = "ipfs://QmSsYRx3LpDAb1GZQm7zZ1AuHZjfbPkD6J7s9r41xu1mf8";
     uint256 public constant COMMON_RARITY = 70;
@@ -65,7 +65,7 @@ contract PuppyRaffle is ERC721, Ownable {
     constructor(uint256 _entranceFee, address _feeAddress, uint256 _raffleDuration) ERC721("Puppy Raffle", "PR") {
         entranceFee = _entranceFee;
 
-        // @audit-info check for zero address
+        // report-written: check for zero address
         // input validation 
         feeAddress = _feeAddress;
         raffleDuration = _raffleDuration;
@@ -94,8 +94,7 @@ contract PuppyRaffle is ERC721, Ownable {
         }
 
         // Check for duplicates
-        //@audit-gas cache the array 
-        //uint256 playersLength = players.length;
+        //report-written: cache the array to save gas
         for (uint256 i = 0; i < players.length - 1; i++) {
             for (uint256 j = i + 1; j < players.length; j++) {
                 require(players[i] != players[j], "PuppyRaffle: Duplicate player");
@@ -112,7 +111,7 @@ contract PuppyRaffle is ERC721, Ownable {
     // @audit-high player index here is mapped to address 0 but player is still in the player array
 
     function refund(uint256 playerIndex) public {
-        //@audit MEV
+        //written-skipped MEV
         address playerAddress = players[playerIndex];
         require(playerAddress == msg.sender, "PuppyRaffle: Only the player can refund");
         require(playerAddress != address(0), "PuppyRaffle: Player already refunded, or is not active");

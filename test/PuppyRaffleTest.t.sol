@@ -252,7 +252,7 @@ contract PuppyRaffleTest is Test {
 
     }
 
-    function test_reentrancy() public {
+    function test_reentrancyRefund() public {
 
         address[] memory players = new address[](4);
         players[0] = playerOne;

@@ -248,6 +248,37 @@ Place the following test into PuppyRaffleTest.t.sol
 
 Alternatively, you could use [OpenZeppelin's `EnumerableSet` library](https://docs.openzeppelin.com/contracts/4.x/api/utils#EnumerableSet).
 
+
+# Lows
+
+## [L-1] `PuppyRaffle::getActibePlayerIndex` for non-existing players and player at 0 causing a player at index 0 to incorrectly think they have not entered the raffle 
+
+**Description** If a player is at index 0 in the `PuppyRaffle::players` this will return 0, it will also return 0 if a player is not in the array 
+
+```javascript 
+    function getActivePlayerIndex(address player) external view returns (uint256) {
+        for (uint256 i = 0; i < players.length; i++) {
+            if (players[i] == player) {
+                return i;
+            }
+        }
+        //@audit if a player is at index 0 this will return 0 making the player think they are not active 
+        return 0;
+    }
+```
+
+**Impact** A player at index 0 might think they have not entered the raffle and might try to re enter the raffle again wasting gas 
+
+**Proof of Concept** 
+1. Player enter the raffle, they are the first entrant 
+2. `PuppyRaffle::getActibePlayerIndex` returns 0 
+3. Player thinks they have not entered the raffle due to the function documentation 
+
+**Recommended Mitigation** The easiest recommmendation would be to revert if the player is not in the array instead of returning 0 
+
+You could also reserve the 0th position for any competition, but a better solution might be to return `int256` where the function returns -1 if the player is not active 
+
+
 # Gas
 
 ### [G-1] Unchanged state variables should be declared as immutable or constant
@@ -324,3 +355,18 @@ Check for `address(0)` when assigning values to address state variables.
 	```solidity
 	        feeAddress = newFeeAddress;
 	```
+
+### [i-4] `PupppyRaffle::selectWinner` does not follow CEI (Checks, Effects, Interacts) which is not best practice 
+
+its best to keep code clean and follow CEI 
+
+```diff
+
+-    (bool success,) = winner.call{value: prizePool}("");
+-    require(success, "PuppyRaffle: Failed to send prize pool to winner");
+     _safeMint(winner, tokenId);
++     (bool success,) = winner.call{value: prizePool}("");
++     require(success, "PuppyRaffle: Failed to send prize pool to winner");
+
+```
+

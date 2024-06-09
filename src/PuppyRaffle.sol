@@ -106,10 +106,7 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @param playerIndex the index of the player to refund. You can find it externally by calling `getActivePlayerIndex`
     /// @dev This function will allow there to be blank spots in the array
 
-    // @audit-gas using the 'if' keyword instead of the require key word can save us a good amount of gas
-    // @audit-high if there is a blank spot in the array saying for example address zero, and the winner is called at random this can lead to the random winner being a zero address, if a player decides to call for refund the player should be kicked out of the array along with its spot unless there is a mechanism to check for address 0 when calling the random winner. 
-    // @audit-high player index here is mapped to address 0 but player is still in the player array
-
+   
     function refund(uint256 playerIndex) public {
         //written-skipped MEV
         address playerAddress = players[playerIndex];
@@ -118,7 +115,7 @@ contract PuppyRaffle is ERC721, Ownable {
 
         payable(msg.sender).sendValue(entranceFee);
         
-        //@audit reentrant 
+        //report-written: reentrant 
         players[playerIndex] = address(0);
         //@audit-low
         // if an event can be manipulated
@@ -130,7 +127,7 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @notice a way to get the index in the array
     /// @param player the address of a player in the raffle
     /// @return the index of the player in the array, if they are not active, it returns 0
-    // @audit didnt get a mechanism for checking activeness 
+    // report-written: didnt get a mechanism for checking activeness 
 
     function getActivePlayerIndex(address player) external view returns (uint256) {
         for (uint256 i = 0; i < players.length; i++) {
@@ -138,7 +135,7 @@ contract PuppyRaffle is ERC721, Ownable {
                 return i;
             }
         }
-        //@audit if a player is at index 0 this will return 0 making the player think they are not active 
+        //report-written: if a player is at index 0 this will return 0 making the player think they are not active 
         return 0;
     }
 
@@ -154,6 +151,7 @@ contract PuppyRaffle is ERC721, Ownable {
     // @audit no mechanism to check if user is active player or not, as players who has called refund can still be rewarded here 
     // @audit totalsupply is an undeclared identifier hence breaking the whole code
     function selectWinner() external {
+        //@audit-info recommend follow CEI 
         require(block.timestamp >= raffleStartTime + raffleDuration, "PuppyRaffle: Raffle not over");
         require(players.length >= 4, "PuppyRaffle: Need at least 4 players");
 

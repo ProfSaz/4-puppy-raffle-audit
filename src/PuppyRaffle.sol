@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.6;
 
+//@audit use of floating pragma is bad 
+
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -151,14 +153,22 @@ contract PuppyRaffle is ERC721, Ownable {
         uint256 totalAmountCollected = players.length * entranceFee;
         //q is the total 80% correct
         //q why not address(this).balance
+
+        //@audit using magic numbers 
+        // uint256 public constant = PRICE_POOL_PRECISION 
         uint256 prizePool = (totalAmountCollected * 80) / 100;
         uint256 fee = (totalAmountCollected * 20) / 100;
         //q why is the fee type casted 
         //@audit overflow 
+        //Fixes: Use a newer version of solidity/ a higher uint type
+
+        //@audit unsafe cast uint256 to uint64
         totalFees = totalFees + uint64(fee);
 
         uint256 tokenId = totalSupply();
 
+        //@audit use a better randomness
+        //@audit people can revert Tx till they win 
         // We use a different RNG calculate from the winnerIndex to determine rarity
         uint256 rarity = uint256(keccak256(abi.encodePacked(msg.sender, block.difficulty))) % 100;
         if (rarity <= COMMON_RARITY) {
@@ -172,6 +182,9 @@ contract PuppyRaffle is ERC721, Ownable {
         delete players;
         raffleStartTime = block.timestamp;
         previousWinner = winner;
+
+        //q what if winner is a smart contract that has their fallback messed up
+        //@audit winner wouldnt get the money if thier fallback was messed up 
         (bool success,) = winner.call{value: prizePool}("");
         require(success, "PuppyRaffle: Failed to send prize pool to winner");
         _safeMint(winner, tokenId);
@@ -182,6 +195,9 @@ contract PuppyRaffle is ERC721, Ownable {
     // @audit anybody can call the withdraw fees functions here this is supposed to be ownable
     // @audit there is no mechanism to check if competition is still active 
     function withdrawFees() external {
+
+        //q so if the protocol has players fees cannot be withdrawn 
+        //@audit is it difficult to withdraw fees
         require(address(this).balance == uint256(totalFees), "PuppyRaffle: There are currently players active!");
         uint256 feesToWithdraw = totalFees;
         totalFees = 0;
@@ -193,6 +209,7 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @param newFeeAddress the new address to send fees to
     function changeFeeAddress(address newFeeAddress) external onlyOwner {
         feeAddress = newFeeAddress;
+        //q are we missing some events
         emit FeeAddressChanged(newFeeAddress);
     }
 

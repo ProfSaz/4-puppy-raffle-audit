@@ -151,7 +151,7 @@ contract PuppyRaffle is ERC721, Ownable {
     // @audit no mechanism to check if user is active player or not, as players who has called refund can still be rewarded here 
     // @audit totalsupply is an undeclared identifier hence breaking the whole code
     function selectWinner() external {
-        //@audit-info recommend follow CEI 
+        //report-written: recommend follow CEI 
         require(block.timestamp >= raffleStartTime + raffleDuration, "PuppyRaffle: Raffle not over");
         require(players.length >= 4, "PuppyRaffle: Need at least 4 players");
 

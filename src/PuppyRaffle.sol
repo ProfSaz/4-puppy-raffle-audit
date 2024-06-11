@@ -155,7 +155,7 @@ contract PuppyRaffle is ERC721, Ownable {
         require(block.timestamp >= raffleStartTime + raffleDuration, "PuppyRaffle: Raffle not over");
         require(players.length >= 4, "PuppyRaffle: Need at least 4 players");
 
-        //report-written weak randomness 
+        //report-written: weak randomness 
         uint256 winnerIndex =
             uint256(keccak256(abi.encodePacked(msg.sender, block.timestamp, block.difficulty))) % players.length;
         address winner = players[winnerIndex];
@@ -163,21 +163,21 @@ contract PuppyRaffle is ERC721, Ownable {
         //q is the total 80% correct
         //q why not address(this).balance
 
-        //@audit using magic numbers 
+        //report-written using magic numbers 
        
         uint256 prizePool = (totalAmountCollected * 80) / 100;
         uint256 fee = (totalAmountCollected * 20) / 100;
         //q why is the fee type casted 
-        //@audit overflow 
+        //report-written: overflow 
         //Fixes: Use a newer version of solidity/ a higher uint type
 
-        //@audit unsafe cast uint256 to uint64
+        //report-written: unsafe cast uint256 to uint64
         totalFees = totalFees + uint64(fee);
 
         uint256 tokenId = totalSupply();
 
-        //@audit use a better randomness
-        //@audit people can revert Tx till they win 
+        //report-written: use a better randomness
+        //report-written: people can revert Tx till they win 
         // We use a different RNG calculate from the winnerIndex to determine rarity
         uint256 rarity = uint256(keccak256(abi.encodePacked(msg.sender, block.difficulty))) % 100;
         if (rarity <= COMMON_RARITY) {
@@ -193,7 +193,7 @@ contract PuppyRaffle is ERC721, Ownable {
         previousWinner = winner;
 
         //q what if winner is a smart contract that has their fallback messed up
-        //@audit winner wouldnt get the money if thier fallback was messed up 
+        //report-written: winner wouldnt get the money if thier fallback was messed up 
         (bool success,) = winner.call{value: prizePool}("");
         require(success, "PuppyRaffle: Failed to send prize pool to winner");
         _safeMint(winner, tokenId);
@@ -207,6 +207,7 @@ contract PuppyRaffle is ERC721, Ownable {
 
         //q so if the protocol has players fees cannot be withdrawn 
         //@audit is it difficult to withdraw fees
+        //report-written: mishandling ETH
         require(address(this).balance == uint256(totalFees), "PuppyRaffle: There are currently players active!");
         uint256 feesToWithdraw = totalFees;
         totalFees = 0;
@@ -220,7 +221,7 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @param newFeeAddress the new address to send fees to
     function changeFeeAddress(address newFeeAddress) external onlyOwner {
         feeAddress = newFeeAddress;
-        //q are we missing some events
+        //report-written: missing some events
         emit FeeAddressChanged(newFeeAddress);
     }
 

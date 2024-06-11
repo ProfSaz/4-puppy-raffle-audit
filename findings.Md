@@ -131,6 +131,22 @@ function refund(uint256 playerIndex) public {
 
 ```
 
+
+### [H-2] Weak randomness in `PuppyRaffle::selectWinner` allows users to influence or predict the winner and predict the winning puppy
+
+**Description:** Hashing `msg.sender`, `block.timestamp`, and `block.difficulty` together creates a predictable and deterministic number. A predictable number is not a good random number malicious users could manipulate and predict the numbers and pick a winner by themselves.
+
+*Notes* = this mean users can frontrun this function and call refund if they see that they are not the winner 
+
+**Impact:** Any user can influence the winner of the raffle, winning the raffle and selecting the  `rarest` puppy. Making the entire raffle worthless if it becomes a gas war as to who wins the raffle and get the rarest puppy.
+
+**Proof Of Concept:**
+1. Validators could know the `block.timestamp` and `block.difficulty` and use that to predict when/how to participate. See the [solidity blog on prevrandao](https://soliditydeveloper.com/prevrandao). `block.difficulty` was recently replaced with block.prevrandao
+2. User can mine/manipulate the `msg.sender` value to result in the address being used to generate the winner 
+3. Users can revert their `selectWinner` transaction if they dont like the winner or resulting puppy.
+
+
+**Recommended Mitigation:** Consider using a cryptographically provable random number generator such as chainlink VRF. 
 # Medium
 
 ## [M-N] Looping through players array to check for duplicate in `PuppyRaffle::enterRaffle` is a potential Denial of Service attack (DoS), incrementing gas cost for future entrant 
@@ -356,7 +372,7 @@ Check for `address(0)` when assigning values to address state variables.
 	        feeAddress = newFeeAddress;
 	```
 
-### [i-4] `PupppyRaffle::selectWinner` does not follow CEI (Checks, Effects, Interacts) which is not best practice 
+### [I-4] `PupppyRaffle::selectWinner` does not follow CEI (Checks, Effects, Interacts) which is not best practice 
 
 its best to keep code clean and follow CEI 
 
@@ -370,3 +386,23 @@ its best to keep code clean and follow CEI
 
 ```
 
+
+### [I-5] Using of "magic" numbers is discouraged
+
+It can be confusing to see numbers literals in the code base its easier to read if the numbers are named 
+
+```javascript
+
+        uint256 prizePool = (totalAmountCollected * 80) / 100;
+        uint256 fee = (totalAmountCollected * 20) / 100;
+
+```
+
+instead you could use 
+
+```javascript 
+        uint256 public constant PRICE_POOL_PERCENTAGE = 80; 
+        uint256 public constant FEE_PERCENTAGE = 20;
+        uint256 public constant  POOL_PRECISION = 100;
+
+```
